@@ -373,7 +373,7 @@ export function handlePointerMove(event) {
   if (cfg.type === 'curtain') {
     if (IS_MOBILE) {
       // lissage pour éviter l'effet saccadé sur mobile
-      const SMOOTH_CURTAIN = 0.9;
+      const SMOOTH_CURTAIN = 0.2;
       dragStep.progress = THREE.MathUtils.lerp(
         dragStep.progress,
         targetProgress,
@@ -384,7 +384,7 @@ export function handlePointerMove(event) {
     }
   } else {
     // plantes : drag fluide, plus réactif sur mobile
-    const SMOOTH = IS_MOBILE ? 0.9 : 0.3;
+    const SMOOTH = IS_MOBILE ? 0.8 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -629,6 +629,7 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
 
 
 
