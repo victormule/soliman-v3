@@ -342,14 +342,16 @@ export function handlePointerMove(event) {
   const cfg = dragStep.config;
 
   // --- distance de drag avant 0 → 1 ---
-  let pixelsForFull = cfg.dragPixelsForFull || 300;
+  let pixelsForFull =
+    cfg.dragPixelsForFull ||
+    (cfg.type === 'curtain' ? 160 : 150); // valeurs de base PC
 
   if (IS_MOBILE) {
-    // sur mobile : course plus courte
+    // sur mobile : course beaucoup plus courte
     if (cfg.type === 'curtain') {
-      pixelsForFull *= 0.4;   // rideau : ~40% de la distance prévue
+      pixelsForFull = 140;   // ~ petit geste horizontal
     } else {
-      pixelsForFull *= 0.35;  // grasse1 / plante2 : encore un peu plus court
+      pixelsForFull = 120;   // grasse1 / plante2 : encore plus court
     }
   }
 
@@ -369,9 +371,8 @@ export function handlePointerMove(event) {
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
   if (cfg.type === 'curtain') {
-    // rideau :
     if (IS_MOBILE) {
-      // léger lissage sur mobile pour que ça soit moins saccadé
+      // lissage pour éviter l'effet saccadé sur mobile
       const SMOOTH_CURTAIN = 0.5;
       dragStep.progress = THREE.MathUtils.lerp(
         dragStep.progress,
@@ -379,12 +380,11 @@ export function handlePointerMove(event) {
         SMOOTH_CURTAIN
       );
     } else {
-      // desktop : on suit directement le doigt
       dragStep.progress = targetProgress;
     }
   } else {
-    // plantes : drag plus fluide, mais réactif sur mobile
-    const SMOOTH = IS_MOBILE ? 0.6 : 0.3;
+    // plantes : drag fluide, plus réactif sur mobile
+    const SMOOTH = IS_MOBILE ? 0.7 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -417,13 +417,21 @@ export function handlePointerUp() {
     handleCurtainPointerUp(step, cfg, activeCharacterName, autoClosing);
   } else if (cfg.type === 'pullUp' || !cfg.type) {
     // SNAP auto pour grasse1 / plante2
-    const SNAP_THRESHOLD = IS_MOBILE ? 0.3 : 0.2; // plus aimanté sur mobile
 
     let target = null;
-    if (step.progress > 1 - SNAP_THRESHOLD) {
-      target = 1;
-    } else if (step.progress < SNAP_THRESHOLD) {
-      target = 0;
+
+    if (IS_MOBILE) {
+      // mobile : magnétisme fort → toujours vers un des deux extrêmes
+      target = step.progress >= 0.5 ? 1 : 0;
+    } else {
+      // desktop : on garde une zone "proche" uniquement
+      const SNAP_THRESHOLD = 0.2;
+
+      if (step.progress > 1 - SNAP_THRESHOLD) {
+        target = 1;
+      } else if (step.progress < SNAP_THRESHOLD) {
+        target = 0;
+      }
     }
 
     if (target !== null) {
@@ -432,7 +440,6 @@ export function handlePointerUp() {
     }
   }
 }
-
 
 // =========================
 //  TRANSFORM
@@ -518,7 +525,7 @@ function updateSnapping(dt) {
       }
 
       const target = step.snapTarget;
-      const SNAP_SPEED = IS_MOBILE ? 6.0 : 4.0; // plus rapide sur mobile
+      const SNAP_SPEED = IS_MOBILE ? 8.0 : 4.0; // plus rapide sur mobile
 
       const dir = target > step.progress ? 1 : -1;
       let newProg = step.progress + dir * SNAP_SPEED * dt;
@@ -534,7 +541,6 @@ function updateSnapping(dt) {
     });
   });
 }
-
 
 // =========================
 //  FIN DE REMBOBINAGE
@@ -623,3 +629,4 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
