@@ -340,15 +340,27 @@ export function handlePointerMove(event) {
   if (autoClosing) return;
 
   const cfg = dragStep.config;
-  const basePixelsForFull = cfg.dragPixelsForFull || 300;
-  const pixelsForFull = IS_MOBILE ? basePixelsForFull * 0.6 : basePixelsForFull;
+
+  // --- distance de drag avant 0 → 1 ---
+  let pixelsForFull = cfg.dragPixelsForFull || 300;
+
+  if (IS_MOBILE) {
+    // sur mobile : course plus courte
+    if (cfg.type === 'curtain') {
+      pixelsForFull *= 0.4;   // rideau : ~40% de la distance prévue
+    } else {
+      pixelsForFull *= 0.35;  // grasse1 / plante2 : encore un peu plus court
+    }
+  }
 
   let deltaProgress = 0;
 
   if (cfg.type === 'curtain') {
+    // rideau : drag horizontal vers la droite = fermeture
     const deltaPixels = event.clientX - dragStartX;
     deltaProgress = deltaPixels / pixelsForFull;
   } else {
+    // plantes : drag vertical vers le haut = ouverture
     const deltaPixels = dragStartY - event.clientY;
     deltaProgress = deltaPixels / pixelsForFull;
   }
@@ -357,9 +369,22 @@ export function handlePointerMove(event) {
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
   if (cfg.type === 'curtain') {
-    dragStep.progress = targetProgress;
+    // rideau :
+    if (IS_MOBILE) {
+      // léger lissage sur mobile pour que ça soit moins saccadé
+      const SMOOTH_CURTAIN = 0.5;
+      dragStep.progress = THREE.MathUtils.lerp(
+        dragStep.progress,
+        targetProgress,
+        SMOOTH_CURTAIN
+      );
+    } else {
+      // desktop : on suit directement le doigt
+      dragStep.progress = targetProgress;
+    }
   } else {
-    const SMOOTH = IS_MOBILE ? 0.4 : 0.3;
+    // plantes : drag plus fluide, mais réactif sur mobile
+    const SMOOTH = IS_MOBILE ? 0.6 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -392,7 +417,7 @@ export function handlePointerUp() {
     handleCurtainPointerUp(step, cfg, activeCharacterName, autoClosing);
   } else if (cfg.type === 'pullUp' || !cfg.type) {
     // SNAP auto pour grasse1 / plante2
-    const SNAP_THRESHOLD = 0.20;
+    const SNAP_THRESHOLD = IS_MOBILE ? 0.3 : 0.2; // plus aimanté sur mobile
 
     let target = null;
     if (step.progress > 1 - SNAP_THRESHOLD) {
@@ -407,6 +432,7 @@ export function handlePointerUp() {
     }
   }
 }
+
 
 // =========================
 //  TRANSFORM
@@ -492,7 +518,7 @@ function updateSnapping(dt) {
       }
 
       const target = step.snapTarget;
-      const SNAP_SPEED = 4.0;
+      const SNAP_SPEED = IS_MOBILE ? 6.0 : 4.0; // plus rapide sur mobile
 
       const dir = target > step.progress ? 1 : -1;
       let newProg = step.progress + dir * SNAP_SPEED * dt;
@@ -508,6 +534,7 @@ function updateSnapping(dt) {
     });
   });
 }
+
 
 // =========================
 //  FIN DE REMBOBINAGE
