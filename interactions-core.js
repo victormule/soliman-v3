@@ -349,9 +349,9 @@ export function handlePointerMove(event) {
   if (IS_MOBILE) {
     // sur mobile : course beaucoup plus courte
     if (cfg.type === 'curtain') {
-      pixelsForFull = 20;   // ~ petit geste horizontal
+      pixelsForFull = 40;   // ~ petit geste horizontal
     } else {
-      pixelsForFull = 10;   // grasse1 / plante2 : encore plus court
+      pixelsForFull = 20;   // grasse1 / plante2 : encore plus court
     }
   }
 
@@ -373,7 +373,7 @@ export function handlePointerMove(event) {
   if (cfg.type === 'curtain') {
     if (IS_MOBILE) {
       // lissage pour éviter l'effet saccadé sur mobile
-      const SMOOTH_CURTAIN = 0.2;
+      const SMOOTH_CURTAIN = 0.4;
       dragStep.progress = THREE.MathUtils.lerp(
         dragStep.progress,
         targetProgress,
@@ -384,7 +384,7 @@ export function handlePointerMove(event) {
     }
   } else {
     // plantes : drag fluide, plus réactif sur mobile
-    const SMOOTH = IS_MOBILE ? 0.8 : 0.3;
+    const SMOOTH = IS_MOBILE ? 0.3 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -525,7 +525,7 @@ function updateSnapping(dt) {
       }
 
       const target = step.snapTarget;
-      const SNAP_SPEED = IS_MOBILE ? 8.0 : 4.0; // plus rapide sur mobile
+      const SNAP_SPEED = IS_MOBILE ? 6.0 : 4.0; // plus rapide sur mobile
 
       const dir = target > step.progress ? 1 : -1;
       let newProg = step.progress + dir * SNAP_SPEED * dt;
@@ -629,6 +629,7 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
 
 
 
