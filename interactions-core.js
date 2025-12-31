@@ -349,9 +349,9 @@ export function handlePointerMove(event) {
   if (IS_MOBILE) {
     // sur mobile : course beaucoup plus courte
     if (cfg.type === 'curtain') {
-      pixelsForFull = 140;   // ~ petit geste horizontal
+      pixelsForFull = 40;   // ~ petit geste horizontal
     } else {
-      pixelsForFull = 120;   // grasse1 / plante2 : encore plus court
+      pixelsForFull = 20;   // grasse1 / plante2 : encore plus court
     }
   }
 
@@ -629,4 +629,5 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
 
