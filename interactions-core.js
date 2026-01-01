@@ -373,7 +373,7 @@ export function handlePointerMove(event) {
   if (cfg.type === 'curtain') {
     if (IS_MOBILE) {
       // lissage pour éviter l'effet saccadé sur mobile
-      const SMOOTH_CURTAIN = 0.4;
+      const SMOOTH_CURTAIN = 1;
       dragStep.progress = THREE.MathUtils.lerp(
         dragStep.progress,
         targetProgress,
@@ -384,7 +384,7 @@ export function handlePointerMove(event) {
     }
   } else {
     // plantes : drag fluide, plus réactif sur mobile
-    const SMOOTH = IS_MOBILE ? 0.3 : 0.3;
+    const SMOOTH = IS_MOBILE ? 0.5 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -422,7 +422,7 @@ export function handlePointerUp() {
 
     if (IS_MOBILE) {
       // mobile : magnétisme fort → toujours vers un des deux extrêmes
-      target = step.progress >= 0.5 ? 1 : 0;
+      target = step.progress >= 0.3 ? 1 : 0;
     } else {
       // desktop : on garde une zone "proche" uniquement
       const SNAP_THRESHOLD = 0.2;
@@ -629,6 +629,7 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
 
 
 
