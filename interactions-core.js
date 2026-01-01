@@ -24,21 +24,7 @@ let domElementRef = null;
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 
-// characterStates[charName] = {
-//   steps: [
-//     {
-//       config,
-//       mesh?,
-//       baseY?,
-//       progress,
-//       isAnimated,
-//       curtainRewindStarted,
-//       curtainDragStarted,
-//       isSnapping,
-//       snapTarget
-//     }
-//   ]
-// }
+// characterStates[charName] = { steps: [ { config, mesh?, baseY?, progress, isAnimated, curtainRewindStarted, curtainDragStarted, isSnapping, snapTarget } ] }
 const characterStates = {};
 
 let activeCharacterName = null;
@@ -345,7 +331,6 @@ export function handlePointerDown(event) {
   dragStartX = event.clientX;
   dragStartProgress = step.progress;
 
-  // on annule un éventuel snap en cours
   step.isSnapping = false;
   step.snapTarget = null;
 }
@@ -355,21 +340,16 @@ export function handlePointerMove(event) {
   if (autoClosing) return;
 
   const cfg = dragStep.config;
-
-  // 💡 LOGIQUE D’ANCIEN interactions.js :
-  // basePixelsForFull = dragPixelsForFull || 150
-  const basePixelsForFull = cfg.dragPixelsForFull || 150;
+  const basePixelsForFull = cfg.dragPixelsForFull || 300;
   const pixelsForFull = IS_MOBILE ? basePixelsForFull * 0.6 : basePixelsForFull;
 
   let deltaProgress = 0;
 
   if (cfg.type === 'curtain') {
-    // rideau : drag horizontal vers la droite = fermeture
     const deltaPixels = event.clientX - dragStartX;
     deltaProgress = deltaPixels / pixelsForFull;
   } else {
-    // plantes : drag vertical vers le haut = ouverture
-    const deltaPixels = dragStartY - event.clientY; // vers le haut = +
+    const deltaPixels = dragStartY - event.clientY;
     deltaProgress = deltaPixels / pixelsForFull;
   }
 
@@ -377,11 +357,9 @@ export function handlePointerMove(event) {
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
   if (cfg.type === 'curtain') {
-    // rideau : pas de smoothing → suit directement le doigt
     dragStep.progress = targetProgress;
   } else {
-    // plantes : même smoothing que l'ancien fichier
-    const SMOOTH = IS_MOBILE ? 0.35 : 0.25;
+    const SMOOTH = IS_MOBILE ? 0.4 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -391,12 +369,10 @@ export function handlePointerMove(event) {
 
   applyStepTransform(dragStep);
 
-  // rideau : on laisse le module spécifique gérer spritesheetR + frame
-if (cfg.type === 'curtain') {
-  dragStep.progress = targetProgress;
-} else {
-  dragStep.progress = targetProgress; // temporairement, sans lerp
-}
+  // rideau : délégué au module spécifique
+  if (cfg.type === 'curtain') {
+    handleCurtainDragMove(dragStep, cfg, dragStartProgress);
+  }
 }
 
 export function handlePointerUp() {
@@ -415,9 +391,8 @@ export function handlePointerUp() {
     // logique de relâchement rideau spécifique "student"
     handleCurtainPointerUp(step, cfg, activeCharacterName, autoClosing);
   } else if (cfg.type === 'pullUp' || !cfg.type) {
-    // SNAP léger pour grasse1 / plante2 :
-    // si on est proche d'un extrême, on termine la course proprement
-    const SNAP_THRESHOLD = 0.2;
+    // SNAP auto pour grasse1 / plante2
+    const SNAP_THRESHOLD = 0.20;
 
     let target = null;
     if (step.progress > 1 - SNAP_THRESHOLD) {
@@ -449,7 +424,6 @@ function applyStepTransform(step) {
     const maxOffset = cfg.maxOffset || 0;
     mesh.position.y = baseY + step.progress * maxOffset;
   }
-  // type 'curtain' : pas de déplacement du mesh
 }
 
 // =========================
@@ -622,4 +596,5 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
 
