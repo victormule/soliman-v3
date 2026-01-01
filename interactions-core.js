@@ -24,21 +24,7 @@ let domElementRef = null;
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 
-// characterStates[charName] = {
-//   steps: [
-//     {
-//       config,
-//       mesh,
-//       baseY,
-//       progress,
-//       isAnimated,
-//       curtainRewindStarted,
-//       curtainDragStarted,
-//       isSnapping,
-//       snapTarget
-//     }
-//   ]
-// }
+// characterStates[charName] = { steps: [ { config, mesh?, baseY?, progress, isAnimated, curtainRewindStarted, curtainDragStarted, isSnapping, snapTarget } ] }
 const characterStates = {};
 
 let activeCharacterName = null;
@@ -354,18 +340,15 @@ export function handlePointerMove(event) {
   if (autoClosing) return;
 
   const cfg = dragStep.config;
-
-  const basePixelsForFull = cfg.dragPixelsForFull || 150;
+  const basePixelsForFull = cfg.dragPixelsForFull || 300;
   const pixelsForFull = IS_MOBILE ? basePixelsForFull * 0.6 : basePixelsForFull;
 
   let deltaProgress = 0;
 
   if (cfg.type === 'curtain') {
-    // rideau : drag horizontal vers la droite = fermeture
     const deltaPixels = event.clientX - dragStartX;
     deltaProgress = deltaPixels / pixelsForFull;
   } else {
-    // plantes : drag vertical vers le haut = ouverture
     const deltaPixels = dragStartY - event.clientY;
     deltaProgress = deltaPixels / pixelsForFull;
   }
@@ -373,12 +356,10 @@ export function handlePointerMove(event) {
   let targetProgress = dragStartProgress + deltaProgress;
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
-  if (IS_MOBILE) {
-    // Sur mobile : pas de lerp → suit directement le doigt
+  if (cfg.type === 'curtain') {
     dragStep.progress = targetProgress;
   } else {
-    // Desktop : léger smoothing
-    const SMOOTH = 0.25;
+    const SMOOTH = IS_MOBILE ? 0.4 : 0.3;
     dragStep.progress = THREE.MathUtils.lerp(
       dragStep.progress,
       targetProgress,
@@ -388,7 +369,7 @@ export function handlePointerMove(event) {
 
   applyStepTransform(dragStep);
 
-  // rideau : on laisse le module spécifique gérer spritesheet / frame
+  // rideau : délégué au module spécifique
   if (cfg.type === 'curtain') {
     handleCurtainDragMove(dragStep, cfg, dragStartProgress);
   }
@@ -410,8 +391,8 @@ export function handlePointerUp() {
     // logique de relâchement rideau spécifique "student"
     handleCurtainPointerUp(step, cfg, activeCharacterName, autoClosing);
   } else if (cfg.type === 'pullUp' || !cfg.type) {
-    // SNAP auto pour grasse1 / plante2, si proche d'un extrême
-    const SNAP_THRESHOLD = IS_MOBILE ? 0.25 : 0.2;
+    // SNAP auto pour grasse1 / plante2
+    const SNAP_THRESHOLD = 0.20;
 
     let target = null;
     if (step.progress > 1 - SNAP_THRESHOLD) {
@@ -443,7 +424,6 @@ function applyStepTransform(step) {
     const maxOffset = cfg.maxOffset || 0;
     mesh.position.y = baseY + step.progress * maxOffset;
   }
-  // type 'curtain' : pas de déplacement du mesh
 }
 
 // =========================
@@ -478,7 +458,7 @@ function updateStepAnimations() {
     if (cfg.type === 'curtain') {
       updateCurtainAnimations(step, cfg, autoClosing);
     } else {
-      if (step === openable && step.progress > 0.001 && step.progress < 0.999) {
+      if (step === openable && step.progress < 0.999) {
         setStepSprite(step, true);
       } else if (cfg.endSprite && step.progress >= 0.98) {
         ensureStepMesh(step);
@@ -512,7 +492,7 @@ function updateSnapping(dt) {
       }
 
       const target = step.snapTarget;
-      const SNAP_SPEED = IS_MOBILE ? 8.0 : 4.0;
+      const SNAP_SPEED = 4.0;
 
       const dir = target > step.progress ? 1 : -1;
       let newProg = step.progress + dir * SNAP_SPEED * dt;
@@ -584,35 +564,31 @@ function finishAutoClosingForCharacter(charName, appState) {
 export function updateInteractions(deltaMs, appState) {
   const dt = (deltaMs || 0) / 1000;
 
-  // init décor du nouveau personnage activé
   if (characterJustActivatedName) {
     initSequenceForCharacter(characterJustActivatedName);
     characterJustActivatedName = null;
   }
 
-  // rembobinage automatique
   if (autoClosing && autoClosingCharacterName) {
     const charName = autoClosingCharacterName;
     const state = characterStates[charName];
 
     if (state) {
-      const step = getLastClosableStep(state.steps, 0.001);
-      if (step && step.progress > 0) {
-        const cfg = step.config;
-        const delta = AUTO_CLOSE_SPEED * dt;
-        const oldProgress = step.progress;
-        step.progress = Math.max(0, oldProgress - delta);
-        applyStepTransform(step);
+      const closingStep = getLastClosableStep(state.steps, 0.001);
+      if (closingStep && closingStep.progress > 0) {
+        const cfg = closingStep.config;
 
         if (cfg.type === 'curtain') {
-          autoCloseCurtainStep(step, cfg, dt, AUTO_CLOSE_SPEED);
+          autoCloseCurtainStep(closingStep, cfg, dt, AUTO_CLOSE_SPEED);
+        } else {
+          closingStep.progress -= AUTO_CLOSE_SPEED * dt;
+          if (closingStep.progress < 0) closingStep.progress = 0;
+          applyStepTransform(closingStep);
         }
       } else {
-        // tous les steps sont fermés
         finishAutoClosingForCharacter(charName, appState);
       }
     } else {
-      // perso sans décor interactif
       finishAutoClosingForCharacter(charName, appState);
     }
   }
