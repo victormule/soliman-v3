@@ -340,36 +340,37 @@ export function handlePointerMove(event) {
   if (autoClosing) return;
 
   const cfg = dragStep.config;
-  const basePixelsForFull = cfg.dragPixelsForFull || 300;
+
+  // 💡 logiques de drag comme dans l'ancien interactions.js
+  const basePixelsForFull = cfg.dragPixelsForFull || 150;
   const pixelsForFull = IS_MOBILE ? basePixelsForFull * 0.6 : basePixelsForFull;
 
   let deltaProgress = 0;
 
   if (cfg.type === 'curtain') {
+    // rideau : drag horizontal vers la droite = fermeture
     const deltaPixels = event.clientX - dragStartX;
     deltaProgress = deltaPixels / pixelsForFull;
   } else {
-    const deltaPixels = dragStartY - event.clientY;
+    // plantes : drag vertical vers le haut = ouverture
+    const deltaPixels = dragStartY - event.clientY; // vers le haut = +
     deltaProgress = deltaPixels / pixelsForFull;
   }
 
   let targetProgress = dragStartProgress + deltaProgress;
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
-  if (cfg.type === 'curtain') {
-    dragStep.progress = targetProgress;
-  } else {
-    const SMOOTH = IS_MOBILE ? 0.4 : 0.3;
-    dragStep.progress = THREE.MathUtils.lerp(
-      dragStep.progress,
-      targetProgress,
-      SMOOTH
-    );
-  }
+  // même smoothing pour tous les steps (comme avant)
+  const SMOOTH = IS_MOBILE ? 0.35 : 0.25;
+  dragStep.progress = THREE.MathUtils.lerp(
+    dragStep.progress,
+    targetProgress,
+    SMOOTH
+  );
 
   applyStepTransform(dragStep);
 
-  // rideau : délégué au module spécifique
+  // rideau : on laisse le module spécifique gérer spritesheet / frames
   if (cfg.type === 'curtain') {
     handleCurtainDragMove(dragStep, cfg, dragStartProgress);
   }
@@ -391,8 +392,9 @@ export function handlePointerUp() {
     // logique de relâchement rideau spécifique "student"
     handleCurtainPointerUp(step, cfg, activeCharacterName, autoClosing);
   } else if (cfg.type === 'pullUp' || !cfg.type) {
-    // SNAP auto pour grasse1 / plante2
-    const SNAP_THRESHOLD = 0.20;
+    // SNAP auto pour grasse1 / plante2 :
+    // juste si on est franchement proche d'un extrême
+    const SNAP_THRESHOLD = 0.2;
 
     let target = null;
     if (step.progress > 1 - SNAP_THRESHOLD) {
@@ -424,6 +426,7 @@ function applyStepTransform(step) {
     const maxOffset = cfg.maxOffset || 0;
     mesh.position.y = baseY + step.progress * maxOffset;
   }
+  // type 'curtain' : pas de déplacement du mesh
 }
 
 // =========================
