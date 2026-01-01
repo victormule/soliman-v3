@@ -24,7 +24,7 @@ export function initCore() {
   // position "loin" par défaut
   const targetPosition = new THREE.Vector3(0, 1.5, isMobile ? 16.5 : 17.5);
 
-  // on mémorise les deux distances pour pouvoir les réutiliser côté UI
+  // on mémorise les deux distances pour pouvoir les modifier/adapter
   const defaultTargetZ = targetPosition.z;                 // 16.5 ou 17.5
   const zoomedTargetZ  = isMobile ? 15.8 : 17.1;           // 16.0 ou 17.0
 
@@ -36,7 +36,8 @@ export function initCore() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   // ==== SHADOW MAP ====
-  renderer.shadowMap.enabled = true;
+  // Sur mobile on coupe les ombres (gros gain de perf), on les garde sur desktop
+  renderer.shadowMap.enabled = !isMobile;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   document.body.appendChild(renderer.domElement);
@@ -52,8 +53,8 @@ export function initCore() {
   light.position.set(45, 10, 30);
   light.castShadow = true;
 
-  // résolution plus fine du shadow map
-  light.shadow.mapSize.set(4096, 4096);
+  // résolution du shadow map, réduite sur mobile pour soulager le GPU
+  light.shadow.mapSize.set(isMobile ? 2048 : 4096, isMobile ? 2048 : 4096);
 
   // on resserre un peu la caméra d’ombre autour de la scène utile
   light.shadow.camera.left   = -30;
@@ -84,7 +85,7 @@ export function initCore() {
 
   const groundMaterial = new THREE.MeshStandardMaterial({
     map: groundTexture,
-    roughness: 1.0,
+    roughness: 1,
     metalness: 0.0,
     side: THREE.FrontSide // pas besoin du dessous, évite des soucis d'ombre
   });
@@ -124,79 +125,108 @@ export function initCore() {
 
   const sunPosition = new THREE.Vector3();
   const inclination = 0.5;
-  const azimuth     = 0.5;
+  const azimuth = 0.25;
   const theta = Math.PI * (inclination - 0.5);
-  const phi   = 2 * Math.PI * (azimuth - 0.5);
+  const phi = 2 * Math.PI * (azimuth - 0.5);
   sunPosition.x = Math.cos(phi);
-  sunPosition.y = Math.sin(theta);
-  sunPosition.z = Math.sin(phi);
-  skyUniforms['sunPosition'].value.copy(sunPosition);
+  sunPosition.y = Math.sin(phi) * Math.sin(theta);
+  sunPosition.z = Math.sin(phi) * Math.cos(theta);
+  sky.material.uniforms['sunPosition'].value.copy(sunPosition);
+  light.position.copy(sunPosition.clone().multiplyScalar(100));
 
-  // ==== PLANTES ANIMÉES + SCÈNE PRINCIPALE ====
+  // ==== CHARGEMENT DU MODÈLE ====
+  const gltfLoader = new GLTFLoader();
+
   const animatedPlants = [];
-  const animNames = new Set([
-    'palm1','palm2','palm3','palm4','palm5','palm6','palm7','palm8','palm9','palm10','palm11','palm12',
-    'plante1','plante2','plante3','plante4','plante5','plante6','plante7','plante8','plante9',
-    'tree1','tree2','tree3','tree4','tree5','tree6','tree7','tree8','tree9','tree10','tree11','tree12','tree13'
-  ]);
 
-  const loader = new GLTFLoader();
-loader.load('model/scene.glb', (gltf) => {
-  const model = gltf.scene;
-  model.scale.set(1, 1, 1);
+  const loadPromise = new Promise((resolve, reject) => {
+    gltfLoader.load(
+      'models/decor2.glb',
+      (gltf) => {
+        const root = gltf.scene;
+        root.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
 
-  model.traverse((child) => {
-    if (!child.isMesh) return;
+        root.position.set(0, 0, 0);
+        scene.add(root);
 
-    // on garde les ombres sur le décor principal
-    child.castShadow = true;
-    child.receiveShadow = true;
+        root.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (
+              child.name.toLowerCase().includes('lottie11') ||
+              child.name.toLowerCase().includes('lottie12') ||
+              child.name.toLowerCase().includes('lottie2') ||
+              child.name.toLowerCase().includes('lottie3') ||
+              child.name.toLowerCase().includes('lottie41') ||
+              child.name.toLowerCase().includes('lottie42')
+            ) {
+              const baseRotation = child.rotation.clone();
+              animatedPlants.push({
+                mesh: child,
+                baseRotation,
+                offset: Math.random() * Math.PI * 2
+              });
+            }
+          }
+        });
 
-    const name = (child.name || '').toLowerCase();
-    const parentName =
-      child.parent && child.parent.name
-        ? child.parent.name.toLowerCase()
-        : '';
+        initScenePlanes(scene);
 
-    if (animNames.has(name) || animNames.has(parentName)) {
-      animatedPlants.push({
-        mesh: child,
-        baseRotation: child.rotation.clone(),
-        offset: Math.random() * Math.PI * 2
-      });
-    }
+        resolve({
+          scene,
+          camera,
+          renderer,
+          controls,
+          targetPosition,
+          startPosition,
+          loadPromise,
+          animatedPlants,
+          baseCamPos: camera.position.clone(),
+          lookTarget: new THREE.Vector3(0, 1.5, 0),
+          shakeAmp: 0,
+          speed: isMobile ? 0.004 : 0.005,
+          defaultTargetZ,
+          zoomedTargetZ
+        });
+      },
+      undefined,
+      (error) => {
+        console.error('Erreur de chargement GLTF :', error);
+        reject(error);
+      }
+    );
   });
-
-  // ⬅️ nouveau : on applique les textures (tree/plante/palm/decor1/decor2)
-  initScenePlanes(model);
-
-  scene.add(model);
-});
-
-
-  // paramètres caméra animée
-  const lookTarget = new THREE.Vector3(0, 1.5, 0);
-  const baseCamPos = new THREE.Vector3().copy(startPosition);
-  const shakeAmp = 0.02;
-  const speed = 0.008;
 
   return {
     scene,
     camera,
     renderer,
     controls,
-    animatedPlants,
-    startPosition,
     targetPosition,
-    lookTarget,
-    baseCamPos,
-    shakeAmp,
-    speed,
+    startPosition,
+    loadPromise,
+    animatedPlants,
+    baseCamPos: camera.position.clone(),
+    lookTarget: new THREE.Vector3(0, 1.5, 0),
+    shakeAmp: 0,
+    speed: isMobile ? 0.004 : 0.005,
     defaultTargetZ,
     zoomedTargetZ
   };
 }
 
+// gestion du zoom caméra
+export function setZoomState(core, isZoomedIn) {
+  core.targetPosition.z = isZoomedIn
+    ? core.zoomedTargetZ
+    : core.defaultTargetZ;
+}
 
 // met à jour la caméra + les plantes qui bougent
 export function updateCameraAndPlants(time, deltaMs, core, appState) {
@@ -214,7 +244,7 @@ export function updateCameraAndPlants(time, deltaMs, core, appState) {
     if (appState.progress < 1) {
       // phase d'intro : on lerp entre start et target
       core.baseCamPos.lerpVectors(core.startPosition, core.targetPosition, appState.progress);
-      } else {
+    } else {
       // =========================
       //  MOUVEMENTS DE ZOOM APRÈS INTRO
       // =========================
@@ -227,30 +257,34 @@ export function updateCameraAndPlants(time, deltaMs, core, appState) {
         core.targetPosition.z === core.defaultTargetZ
       ) {
         const dz = Math.abs(core.baseCamPos.z - core.defaultTargetZ);
-
-        // on considère le dézoom fini quand on est très proche de defaultTargetZ
-        if (dz < 0.08) {
-          appState.cameraSwitchZoomOutDone = true;
+        const threshold = 0.1;
+        if (dz < threshold) {
+          core.baseCamPos.z = core.defaultTargetZ;
+          appState.cameraSwitchPending = false;
+          if (appState.decorClosingDoneForSwitch) {
+            appState.decorClosingDoneForSwitch = false;
+          }
         }
       }
     }
 
-    // tremblement léger
-    const shakeX = (Math.sin(t * 1.0) + Math.sin(t * 3.0 + 1.5)) * 0.5 * core.shakeAmp;
-    const shakeY = Math.sin(t * 2.0 + 0.3) * core.shakeAmp;
-    const shakeZ = Math.sin(t * 1.5 + 0.7) * core.shakeAmp;
+    core.camera.position.copy(core.baseCamPos);
 
-    core.camera.position.set(
-      core.baseCamPos.x + shakeX,
-      core.baseCamPos.y + shakeY,
-      core.baseCamPos.z + shakeZ
-    );
+    const shakeAmount = core.shakeAmp || 0;
+    if (shakeAmount > 0.001) {
+      const shakeX = (Math.random() - 0.5) * shakeAmount;
+      const shakeY = (Math.random() - 0.5) * shakeAmount * 0.5;
+      const shakeZ = (Math.random() - 0.5) * shakeAmount * 0.2;
+      core.camera.position.x += shakeX;
+      core.camera.position.y += shakeY;
+      core.camera.position.z += shakeZ;
 
-    const desiredLook = new THREE.Vector3(
-      0 + appState.mouseX * 0.5,
-      1.5 + appState.mouseY * 0.3,
-      0
-    );
+      const decay = 0.93;
+      core.shakeAmp *= decay;
+      if (core.shakeAmp < 0.0001) core.shakeAmp = 0;
+    }
+
+    const desiredLook = new THREE.Vector3(0, 1.5, 0);
     core.lookTarget.lerp(desiredLook, 0.08);
     core.camera.lookAt(core.lookTarget);
   }
@@ -263,4 +297,3 @@ export function updateCameraAndPlants(time, deltaMs, core, appState) {
     });
   }
 }
-
