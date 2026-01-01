@@ -24,7 +24,21 @@ let domElementRef = null;
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 
-// characterStates[charName] = { steps: [ { config, mesh?, baseY?, progress, isAnimated, curtainRewindStarted, curtainDragStarted, isSnapping, snapTarget } ] }
+// characterStates[charName] = {
+//   steps: [
+//     {
+//       config,
+//       mesh,
+//       baseY,
+//       progress,
+//       isAnimated,
+//       curtainRewindStarted,
+//       curtainDragStarted,
+//       isSnapping,
+//       snapTarget
+//     }
+//   ]
+// }
 const characterStates = {};
 
 let activeCharacterName = null;
@@ -341,7 +355,18 @@ export function handlePointerMove(event) {
 
   const cfg = dragStep.config;
   const basePixelsForFull = cfg.dragPixelsForFull || 300;
-  const pixelsForFull = IS_MOBILE ? basePixelsForFull * 0.6 : basePixelsForFull;
+
+  // 🔧 Nouveau : drag beaucoup plus court / sensible sur mobile
+  let pixelsForFull = basePixelsForFull;
+  if (IS_MOBILE) {
+    if (cfg.type === 'curtain') {
+      // rideau : geste horizontal, on veut que ça réponde vite
+      pixelsForFull = basePixelsForFull * 0.35; // ~105px si 300 de base
+    } else {
+      // grasse1 / plante2 : drag vertical
+      pixelsForFull = basePixelsForFull * 0.4;  // ~60px si 150 de base
+    }
+  }
 
   let deltaProgress = 0;
 
@@ -357,14 +382,20 @@ export function handlePointerMove(event) {
   targetProgress = Math.max(0, Math.min(1, targetProgress));
 
   if (cfg.type === 'curtain') {
+    // rideau : toujours direct, même sur desktop
     dragStep.progress = targetProgress;
   } else {
-    const SMOOTH = IS_MOBILE ? 0.4 : 0.3;
-    dragStep.progress = THREE.MathUtils.lerp(
-      dragStep.progress,
-      targetProgress,
-      SMOOTH
-    );
+    if (IS_MOBILE) {
+      // 🔧 Nouveau : sur mobile, pas de lissage → l’objet colle au doigt
+      dragStep.progress = targetProgress;
+    } else {
+      const SMOOTH = 0.3;
+      dragStep.progress = THREE.MathUtils.lerp(
+        dragStep.progress,
+        targetProgress,
+        SMOOTH
+      );
+    }
   }
 
   applyStepTransform(dragStep);
@@ -492,7 +523,9 @@ function updateSnapping(dt) {
       }
 
       const target = step.snapTarget;
-      const SNAP_SPEED = 4.0;
+
+      // 🔧 Nouveau : snap plus rapide sur mobile
+      const SNAP_SPEED = IS_MOBILE ? 7.0 : 4.0;
 
       const dir = target > step.progress ? 1 : -1;
       let newProg = step.progress + dir * SNAP_SPEED * dt;
