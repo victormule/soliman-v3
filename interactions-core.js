@@ -392,9 +392,11 @@ export function handlePointerMove(event) {
   applyStepTransform(dragStep);
 
   // rideau : on laisse le module spécifique gérer spritesheetR + frame
-  if (cfg.type === 'curtain') {
-    handleCurtainDragMove(dragStep, cfg, dragStartProgress);
-  }
+if (cfg.type === 'curtain') {
+  dragStep.progress = targetProgress;
+} else {
+  dragStep.progress = targetProgress; // temporairement, sans lerp
+}
 }
 
 export function handlePointerUp() {
@@ -620,3 +622,4 @@ export function updateInteractions(deltaMs, appState) {
   updateSnapping(dt);
   updateStepAnimations();
 }
+
